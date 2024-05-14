@@ -5,6 +5,9 @@ from ax.service.ax_client import AxClient
 from ax.models.torch.botorch_modular.surrogate import Surrogate
 from ax.modelbridge.registry import Models
 from ax.modelbridge.generation_strategy import GenerationStep, GenerationStrategy
+from ax.core.arm import Arm
+from ax.core.observation import ObservationFeatures
+from botorch.acquisition import ExpectedImprovement, ProbabilityOfImprovement
 from omegaconf import DictConfig
 from gpytorch.constraints.constraints import GreaterThan
 from gpytorch.likelihoods.gaussian_likelihood import (
@@ -23,6 +26,7 @@ from benchmarking.gp_priors import (
     MODELS,
     get_covar_module
 )
+from scipy.stats import norm
 import numpy as np
 import os
 from os.path import dirname, abspath, join
@@ -32,6 +36,10 @@ import hydra
 import torch
 from time import time
 
+def extract_prediction(prediction, benchmark):
+    mean = prediction[0][benchmark][0]
+    std = prediction[1][benchmark][benchmark][0]
+    return mean, std
 
 @hydra.main(config_path='./configs', config_name='conf')
 def main(cfg: DictConfig) -> None:
@@ -146,6 +154,13 @@ def main(cfg: DictConfig) -> None:
     hyperparameters = {}
     bo_times = []
 
+    # record the EI and PI at the incumbent to select the early stopping threshold
+    incumbent_EI = [] 
+    incumbent_PI = []
+    incumbent_mean = []
+    incumbent_std = []
+    best_values = []
+
     total_iters = num_init + num_bo
     total_batches = math.ceil((num_init + num_bo) / q)
     current_count = 0
@@ -166,6 +181,43 @@ def main(cfg: DictConfig) -> None:
         # Local evaluation here can be replaced with deployment to external system.
         for q_rep in range(q_curr):
             parameters, trial_index = batch_data[q_rep]
+
+            # Compute the PI and EI at the incumbent after the initial sobol
+            if current_count > num_init:
+                # get predictions at the selected point
+                model_bridge = ax_client._generation_strategy.model
+                observation = ObservationFeatures.from_arm(
+                    Arm(
+                        parameters=parameters,
+                    )
+                )
+                prediction = model_bridge.predict([observation,])
+                mean, std = extract_prediction(prediction, benchmark)
+                incumbent_mean.append(mean)
+                incumbent_std.append(std)
+
+                # compute the PI and EI at the incumbent
+                best_point = ax_client.get_best_trial(use_model_predictions=False)
+                best_value = best_point[2][0][benchmark]
+                best_values.append(best_value)
+                # print(f'Best value: {best_value}')
+                # print(f'Mean: {mean}, Std: {std}')
+                s = (mean - best_value) / std # predicted improvement of the incumbent
+                EI_value = std * (s * norm.cdf(s) + norm.pdf(s))
+                # print(f'EI value: {EI_value}')
+                PI_value = norm.cdf(s)
+                # print(f'PI value: {PI_value}')
+
+                incumbent_EI.append(EI_value)
+                incumbent_PI.append(PI_value)
+
+            else:
+                incumbent_EI.append(float('nan'))
+                incumbent_PI.append(float('nan'))
+                incumbent_mean.append(float('nan'))
+                incumbent_std.append(float('nan'))
+                best_values.append(float('nan'))
+
             ax_client.complete_trial(
                 trial_index=trial_index, raw_data=evaluate(parameters))
 
@@ -173,6 +225,12 @@ def main(cfg: DictConfig) -> None:
         results_df = ax_client.get_trials_data_frame()
         configs = torch.tensor(
             results_df.loc[:, ['x_' in col for col in results_df.columns]].to_numpy())
+
+        results_df['Incumbent EI'] = incumbent_EI
+        results_df['Incumbent PI'] = incumbent_PI
+        results_df['Incumbent Mean'] = incumbent_mean
+        results_df['Incumbent Std'] = incumbent_std
+        results_df['Best Point'] = best_values
 
         if cfg.benchmark.get('synthetic', True):
             for q_idx in range(q_curr):
