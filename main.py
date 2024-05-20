@@ -299,7 +299,7 @@ def main(cfg: DictConfig) -> None:
     # Calculate the maximum number of vanilla BO iterations
     num_bo = cfg.benchmark.num_iters - num_init
     # Get the maximum number of TuRBO iterations
-    num_turbo = cfg.benchmark.num_turbo if hasattr(cfg.benchmark, 'num_turbo') else -1 # default to -1, i.e. continue until convergence
+    num_turbo = cfg.benchmark.num_turbo if hasattr(cfg.benchmark, 'num_turbo') else -1 # default to -1, i.e. do not use TuRBO
 
     # Get the test function as objective
     if hasattr(cfg.benchmark, 'outputscale'):
