@@ -194,7 +194,9 @@ class UnstructuredBO:
         state = TurboState(dim=self.dim)
 
         turbo_iter = 0
-        while not state.restart_triggered and turbo_iter < self.num_turbo:
+        while not state.restart_triggered:
+            if self.num_turbo > 0 and turbo_iter >= self.num_turbo:
+                break
             # Normalize parameters and standariize evaluations
             train_X = normalize(self.X, bounds=self.bounds)
             train_y = (self.y - self.y.mean()) / self.y.std()
@@ -222,12 +224,12 @@ class UnstructuredBO:
                     device=self.device
                 ).unsqueeze(-1)
 
-                # Update state
-                state.update_state(next_y)
-
                 # Append the data points and evaluations
                 self.X = torch.cat([self.X, next_X.unsqueeze(0)], dim=0)
                 self.y = torch.cat([self.y, next_y], dim=0)
+
+                # Update state
+                state.update_state(next_y)
 
                 # Update the results
                 for j in range(self.dim):
@@ -299,8 +301,7 @@ def main(cfg: DictConfig) -> None:
     # Calculate the maximum number of vanilla BO iterations
     num_bo = cfg.benchmark.num_iters - num_init
     # Get the maximum number of TuRBO iterations
-    num_turbo = cfg.benchmark.num_turbo if hasattr(cfg.benchmark, 'num_turbo') else -1 # default to -1, i.e. do not use TuRBO
-
+    num_turbo = cfg.benchmark.num_turbo if hasattr(cfg.benchmark, 'num_turbo') else -1 # default to -1, i.e. run until TuRBO converges
     # Get the test function as objective
     if hasattr(cfg.benchmark, 'outputscale'):
         test_function = get_test_function(
