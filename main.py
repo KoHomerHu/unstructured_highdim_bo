@@ -23,6 +23,7 @@ from benchmarking.gp_priors import (
     MODELS,
     get_covar_module
 )
+from turbo import TurboState, generate_next_point
 
 """
 High-dimenensional Bayesian Optimization without considering low-dimensional structures.
@@ -159,7 +160,7 @@ class UnstructuredBO:
                 dtype=self.dtype, 
                 device=self.device
             ).unsqueeze(-1)
-            self.X = unnormalize(torch.cat([train_X, candidate], dim=0), bounds=self.bounds)
+            self.X = torch.cat([self.X, next_X.unsqueeze(0)], dim=0)
             self.y = torch.cat([self.y, next_y], dim=0)
 
             # Update the results and calculate EI and PI at the incumbent
@@ -182,8 +183,65 @@ class UnstructuredBO:
             if self.should_stop():
                 break       
 
+    """Perform TuRBO-1 with Thompson Sampling after the vanilla BO stage."""
     def turbo_stage(self, save_file=None):
-        pass
+        from gpytorch.likelihoods import GaussianLikelihood
+        from gpytorch.kernels import MaternKernel, ScaleKernel
+        from gpytorch.constraints import Interval
+        import gpytorch
+        from botorch.models import SingleTaskGP
+
+        state = TurboState(dim=self.dim)
+
+        turbo_iter = 0
+        while not state.restart_triggered and turbo_iter < self.num_turbo:
+            # Normalize parameters and standariize evaluations
+            train_X = normalize(self.X, bounds=self.bounds)
+            train_y = (self.y - self.y.mean()) / self.y.std()
+
+            likelihood = GaussianLikelihood(noise_constraint=Interval(1e-8, 1e-3))
+            covar_module = ScaleKernel(  # Use the same lengthscale prior as in the TuRBO paper
+                MaternKernel(
+                    nu=2.5, ard_num_dims=self.dim, lengthscale_constraint=Interval(0.005, 4.0)
+                )
+            )
+            model = SingleTaskGP(train_X, train_y, likelihood=likelihood, covar_module=covar_module)
+            mll = ExactMarginalLogLikelihood(model.likelihood, model)
+
+            # Always use Cholesky
+            with gpytorch.settings.max_cholesky_size(float("inf")): 
+                # Fit the GP model
+                fit_gpytorch_mll(mll)
+
+                # Generate the next point in the TR using Thompson Sampling
+                raw_next_X = generate_next_point(state, model, train_X, train_y)
+                next_X = unnormalize(raw_next_X, bounds=self.bounds).squeeze(0)
+                next_y = torch.tensor(
+                    [self.eval_objective(raw_next_X)],
+                    dtype=self.dtype,
+                    device=self.device
+                ).unsqueeze(-1)
+
+                # Update state
+                state.update_state(next_y)
+
+                # Append the data points and evaluations
+                self.X = torch.cat([self.X, next_X.unsqueeze(0)], dim=0)
+                self.y = torch.cat([self.y, next_y], dim=0)
+
+                # Update the results
+                for j in range(self.dim):
+                    self.results[f"x_{j+1}"].append(next_X[j].cpu().item())
+                self.results['Eval'].append(next_y.cpu().item())
+                self.results['Best Value'].append(self.y.max().cpu().item())
+                self.results['EI'].append(float('nan'))
+                self.results['PI'].append(float('nan'))
+
+                print(f"(3) Iteration {self.num_init+self.num_bo+turbo_iter+1}/{self.num_init+self.num_bo+self.num_turbo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (L: {state.length:.2e}, Best Value: {self.y.max().item():.2f})")
+
+                self.save_results(save_file) # Save the results
+
+            turbo_iter += 1
 
     def run(self, save_path=None, save_name=None):
         # Get the address to save the results
@@ -195,7 +253,7 @@ class UnstructuredBO:
 
         self.sobol_stage(save_file)
         self.vanilla_bo_stage(save_file)
-        # self.turbo_stage(save_file)
+        self.turbo_stage(save_file)
     
     def save_results(self, save_file, model=None):
         if save_file is not None:
