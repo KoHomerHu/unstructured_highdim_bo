@@ -1,6 +1,4 @@
-# Unstructured Methods for High-Dimensional Bayesian Optimization
-
-(Adapted from the official repository for "Vanilla Bayesian Optimization Performs Great in High Dimensions")
+# Official repository for "Vanilla Bayesian Optimization Performs Great in High Dimensions"
 
 To run any experiment in the paper:
 
