@@ -8,7 +8,7 @@
 
 - [x] Understand the code in [vanilla_bo_in_highdim](https://github.com/hvarfner/vanilla_bo_in_highdim), rewrote them using BoTorch only for more flexible customization.
 - [x] Combine vanilla BO with TuRBO-1 and test the performance (without implementing early stopping strategies).
-- [ ] Try out TuRBO with EI (instead of TS) with scaled lengthscales prior.
+- [ ] Implement the shrinkage of lengthscales and TR side length (possible strategies: AR cooling, IQR, success/failure counter).
 
 
 ## Timeline
