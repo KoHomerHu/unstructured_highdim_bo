@@ -9,6 +9,7 @@
 - [x] Understand the code in [vanilla_bo_in_highdim](https://github.com/hvarfner/vanilla_bo_in_highdim), rewrote them using BoTorch only for more flexible customization.
 - [x] Combine vanilla BO with TuRBO-1 and test the performance (without implementing early stopping strategies).
 - [ ] Implement the shrinkage of lengthscales and TR side length (possible strategies: AR cooling, IQR, success/failure counter).
+  - Should I fit the model inside the trust region (i.e. neglect data points outside of the trust region)? In doing so, I have to fit a global GP first, then use that to decide the trust region's side lengths (which depend on the lengthscales). Meantime, I cannot guarantee that there are enough data points in the TR (maybe try to generate points via Sobol?).
 
 
 ## Timeline
