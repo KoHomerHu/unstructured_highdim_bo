@@ -15,7 +15,10 @@ from benchmarking.gp_priors import (
     MODELS,
     get_covar_module
 )
+
+from state_evol import DummyState, TurboState
 from turbo import VanillaTuRBO
+from ls_evol import TrustRegionEvol
         
 
 @hydra.main(config_path='./configs', config_name='conf')
@@ -29,12 +32,12 @@ def main(cfg: DictConfig) -> None:
 
     # Get the model and model_kwargs
     model = MODELS[cfg.model.gp]
-    model_kwargs = get_covar_module(
-        cfg.model.model_name, 
-        len(bounds.T), 
-        gp_params=cfg.model.get('gp_params', None),
-        gp_constraints=cfg.model.get('gp_constraints', {})
-    )
+    covar_model_params = {
+        "model_name": cfg.model.model_name,
+        "dims": len(bounds.T),
+        "gp_params": cfg.model.get('gp_params', None),
+        "gp_constraints": cfg.model.get('gp_constraints', {})
+    }
 
     # If the acquisition function is Sampling, set num_init to the number of iterations
     # Otherwise, set num_init to the calculated number of initial points
@@ -67,19 +70,32 @@ def main(cfg: DictConfig) -> None:
         )
 
     # initialize the optimizer
-    optimizer = VanillaTuRBO(
+    # optimizer = VanillaTuRBO(
+    #     model=model,
+    #     model_params=covar_model_params,
+    #     acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
+    #     opt_kwargs=dict(cfg.acq_opt),
+    #     objective=test_function,
+    #     bounds=bounds,
+    #     num_init=num_init,
+    #     num_bo=num_bo,
+    #     num_turbo=num_turbo,
+    #     device=device,
+    #     seed=cfg.seed,
+    #     gss=cfg.gss if hasattr(cfg, 'gss') else None
+    # )
+    optimizer = TrustRegionEvol(
         model=model,
-        model_kwargs=model_kwargs,
+        model_params=covar_model_params,
         acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
         opt_kwargs=dict(cfg.acq_opt),
         objective=test_function,
         bounds=bounds,
         num_init=num_init,
         num_bo=num_bo,
-        num_turbo=num_turbo,
         device=device,
         seed=cfg.seed,
-        gss=cfg.gss if hasattr(cfg, 'gss') else None
+        evol_state_maintainer=DummyState
     )
 
     # run the optimization
