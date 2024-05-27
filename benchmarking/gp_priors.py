@@ -1,4 +1,5 @@
 import math
+import copy
 
 from typing import Optional, Dict
 import torch
@@ -32,21 +33,23 @@ MODELS = {
     'SingleTaskGP': SingleTaskGP,
 }
 DIM_SCALING = {
-               "default": (0.5, 0), # scaling factor of mu and sigma in the dim
-               "with_ops": (0.5, 0),
-               }
+    "default": (0.5, 0), # scaling factor of mu and sigma in the dim
+    "with_ops": (0.5, 0),
+}
 
 
-
-def parse_hyperparameters(gp_params: Dict[str, float], dims: int, dim_scaling: float = None):
+def parse_hyperparameters(gp_params: Dict[str, float], dims: int, dim_scaling: float = None, side_length: float = 1.0):
     ls_params = gp_params.get('ls', {})
     ops_params = gp_params.get('ops', {})
     noise_params = gp_params.get('noise', {})
+    
     if dim_scaling is not None:
         ls_params['loc'] = ls_params['loc'] + math.log(dims) * dim_scaling[0]
         # toyed with scaling the scale parameter as well
         ls_params['scale'] = (ls_params['scale'] ** 2 + math.log(dims) * dim_scaling[1]) **0.5 # Since it's std and not var, we divide by 2
-
+    
+    # Rescale the lengthscales prior on location based on side length of trust region
+    ls_params['loc'] = ls_params['loc'] + math.log(side_length)
 
     return ls_params, ops_params, noise_params
 
@@ -59,24 +62,25 @@ def parse_constraints(gp_constraints):
     return ls_constraint, scale_constraint, noise_constraint
 
 
-def get_covar_module(model_name, dims, gp_params: Dict = None, gp_constraints: Dict = {}):
+def get_covar_module(model_name, dims, gp_params: Dict = None, gp_constraints: Dict = {}, side_length: Optional[float] = 1.0):
 
-    ls_params, ops_params, noise_params = parse_hyperparameters(
-        gp_params, dims, dim_scaling=(DIM_SCALING.get(model_name)))
+    gp_params = copy.deepcopy(gp_params) # to avoid modifying the original dictionary
+
+    ls_params, _, noise_params = parse_hyperparameters(
+        gp_params, dims, dim_scaling=(DIM_SCALING.get(model_name)), side_length=side_length
+    )
     ls_constraint, scale_constraint, noise_constraint = parse_constraints(
-        gp_constraints)
+        gp_constraints
+    )
 
     COVAR_MODULES = {
-        'gamma_3_6':
-        {
+        'gamma_3_6': {
             'covar_module_class': None,
             'covar_module_options': None,
             'likelihood_class': None,
             'likelihood_options': None,
         },
-        
-        'rbf_mle':
-        {
+        'rbf_mle':{
             'covar_module_class': RBFKernel,
             'covar_module_options': dict(
                     ard_num_dims=dims,
@@ -87,9 +91,7 @@ def get_covar_module(model_name, dims, gp_params: Dict = None, gp_constraints: D
                 noise_prior=None
             ),
         },        
-        
-        'default':
-        {
+        'default': {
             'covar_module_class': RBFKernel,
             'covar_module_options': dict(
                     ard_num_dims=dims,
@@ -102,9 +104,7 @@ def get_covar_module(model_name, dims, gp_params: Dict = None, gp_constraints: D
                 noise_constraint=GreaterThan(noise_constraint)
             ),
         },
-        
-        'with_ops':
-        {
+        'with_ops': {
             'covar_module_class': ScaleKernel,
             'covar_module_options': dict(
                 base_kernel=RBFKernel(
@@ -120,7 +120,7 @@ def get_covar_module(model_name, dims, gp_params: Dict = None, gp_constraints: D
                 noise_prior=LogNormalPrior(**noise_params),
                 noise_constraint=GreaterThan(noise_constraint)
             ),
-        },
-        
+        },     
     }
+
     return COVAR_MODULES[model_name]
