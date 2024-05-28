@@ -17,7 +17,13 @@ from benchmarking.mappings import ACQUISITION_FUNCTIONS
 from benchmarking.gp_priors import get_covar_module
 from benchmarking.eval_utils import get_model_hyperparameters
 
-from state_evol import DummyState
+from state_evol import (
+    DummyState, 
+    TurboState,
+    AlphaRatioState,
+    EIThresholdState,
+    PIThresholdState,
+)
 
 """
 High-dimenensional Bayesian Optimization that uses vanilla BO with evolving trust region.
@@ -161,9 +167,6 @@ class TrustRegionEvol:
             self.X = torch.cat([self.X, next_X.unsqueeze(0)], dim=0)
             self.y = torch.cat([self.y, next_y], dim=0)
 
-            # Update state
-            self.state.update_state(next_y)
-
             # Update the results
             for j in range(self.dim):
                 self.results[f"x_{j+1}"].append(next_X[j].cpu().item())
@@ -176,6 +179,16 @@ class TrustRegionEvol:
             pi_func = ProbabilityOfImprovement(model, train_y.max())
             pi = pi_func(next_X.unsqueeze(0)).cpu().item()
             self.results['PI'].append(pi)
+
+            # Update state
+            if isinstance(self.state, EIThresholdState):
+                self.state.update_state(next_y, ei)
+            elif isinstance(self.state, PIThresholdState):
+                self.state.update_state(next_y, pi)
+            elif isinstance(self.state, AlphaRatioState):
+                self.state.update_state(next_y, model, train_X, train_y, self.opt_kwargs)
+            else:
+                self.state.update_state(next_y)
 
             print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (L: {self.state.length:.2e}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
 

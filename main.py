@@ -16,7 +16,13 @@ from benchmarking.gp_priors import (
     get_covar_module
 )
 
-from state_evol import DummyState, TurboState
+from state_evol import (
+    DummyState, 
+    TurboState, 
+    AlphaRatioState,
+    EIThresholdState,
+    PIThresholdState
+)
 from turbo import VanillaTuRBO
 from ls_evol import TrustRegionEvol
         
