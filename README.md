@@ -31,13 +31,13 @@ In this experiment, after 20 initial points were generated from Sobol, vanilla B
 
 [28/05/2024] Refactored the code and implemented methods that shrink the TR side length and use the side length to re-scale the location parameter of the lognormal prior of lengthscales (i.e. scale the preference of lengthscales). Running experiments on ```levy4_25``` and comparing the performances of vanilla BO (```DummyState```), PI thresholding, EI thresholding, alpha-ratio cool down, and TuRBO-like methods (i.e. evolve the TR similar to TuRBO, but use EI instead of Thompson sampling). 
 
-**Hyperparameters.** We set $\epsilon = 10^{-3}$ for the PI threshold and $\tau = 10^{-5}$ for the EI threshold. For alpha-ratio cool down, we set $\alpha=1.2$. Seed is 43.
+**Hyperparameters.** I set $\epsilon = 10^{-3}$ for the PI threshold and $\tau = 10^{-5}$ for the EI threshold. For alpha-ratio cool down, we set $\alpha=1.2$. Seed is 43.
 
 <p align="center">
   <img src="./figures/figure_05_28.png" alt="figure_05_28.png" width="500"/>
 </p>
 
-For the thresholding methods, we found that both the PI and EI thresholds are activated more and more frequently as lengthscales are shrinking, which leads to early stopping (as the minimum side length is reached). I conjecture that this is because smaller lengthscales tend to have smaller acquisition function values. The case of EI is shown in Figure 2 of the elastic GP paper. Consequently, I plan to implement some methods to schedule the thresholds (e.g. multiply them by $0.1$ after being activated) to have more exploration. Both methods slightly outperform the vanilla version.
+For the thresholding methods, I found that both the PI and EI thresholds are activated more and more frequently as lengthscales are shrinking, which leads to early stopping (as the minimum side length is reached). I conjecture that this is because smaller lengthscales tend to have smaller acquisition function values. The case of EI is shown in Figure 2 of the elastic GP paper. Consequently, I plan to implement some methods to schedule the thresholds (e.g. multiply them by $0.1$ after being activated) to have more exploration. Both methods slightly outperform the vanilla version.
 
 For the TuRBO-like method (i.e. success/failure counter), the trust region side length changes slowly (stayed at $0.8$ for the first 153 iterations). Yet so far this method performs the best.
 
