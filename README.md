@@ -8,8 +8,11 @@
 
 - [x] Understand the code in [vanilla_bo_in_highdim](https://github.com/hvarfner/vanilla_bo_in_highdim), rewrote them using BoTorch only for more flexible customization.
 - [x] Combine vanilla BO with TuRBO-1 and test the performance (without implementing early stopping strategies).
-- [ ] Implement the shrinkage of lengthscales and TR side length (possible strategies: AR cooling, IQR, success/failure counter).
-  - Should I fit the model inside the trust region (i.e. neglect data points outside of the trust region)? In doing so, I have to fit a global GP first, then use that to decide the trust region's side lengths (which depend on the lengthscales). Meantime, I cannot guarantee that there are enough data points in the TR (maybe try to generate points via Sobol?).
+- [x] Implement the shrinkage of lengthscales and TR side length (possible strategies: AR cooling, IQR, success/failure counter).
+  - **Question**: Should I fit the model inside the trust region (i.e. neglect data points outside of the trust region)? In doing so, I have to fit a global GP first, then use that model to decide the trust region's side lengths (which depend on lengthscales). Meantime, I cannot guarantee that there are enough data points inside the TR (maybe try to generate points via Sobol?). If I do not fit the model inside the TR, the advantage of using TR is that it is easier to optimize the acquisition function (when lengthscales are small, the locality issue guarantees that the candidate is close to the best observation. However, we cannot utilize the advantage of local GP to learn different hyperparameters in different regions to overcome the heteroscedasticity of the objective function. (I believe TuRBO utilizes this advantage by restarting and running different local GPs in parallel because TuRBO-1 also seems to fit data globally).
+  - **Question**: In [this paper](https://arxiv.org/pdf/1612.03117) that introduces alpha-ratio cool down, it was mentioned that in typical situations they expect that $\alpha_{r, n} > 1$ because the reduced lengthscales lead to larger posterior variance. However, this was not true when I ran the experiment (most of the time this ratio was below $0.5$). Meantime, it contradicts with Figure 2 in the [Elastic GP paper](https://proceedings.mlr.press/v70/rana17a/rana17a.pdf). 
+  - **Question**: The alpha-ratio cool down seems to directly divide the learned lengthscales by $2.0$ (whilst keeping them above the minimum). Unless they do not re-fit the model in every iteration, this does not seem to make sense (as the shrinkage would not affect later iterations). I modified it to shrink the trust region side length, then used this side length to decide the scaling factor on the location parameter of the lognormal prior. However, if the lengthscales aren't really shrinking (as we only shrink the "preference" of lengthscales indirectly), we should not shrink the trust region. 
+- [ ] Run experiments on ```levy4_25``` and compare different methods (e.g., vanilla BO, AR cooling, PI/EI threshold, success/failure counter) to evolve the lengthscale priors and trust region side lengths.
 
 
 ## Timeline
@@ -19,5 +22,7 @@
 <p align="center">
   <img src="./figures/figure_05_20.png" alt="figure_05_20.png" width="500"/>
 </p>
-
+the 
 In this experiment, after 20 initial points were generated from Sobol, vanilla BO was run for 80 iterations and then switched to TuRBO-1 to run for 100 iterations, the result is compared to running vanilla BO only for 180 iterations. Since the levy4_25 values are negative and with random noise, I transformed them by $\log(-y + 0.15)$.
+
+[28/05/2024] Refactored the code and implemented methods for 
