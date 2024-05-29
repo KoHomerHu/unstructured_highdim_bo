@@ -42,7 +42,7 @@ Parameters:
 - device: the device to use for the optimization
 - dtype: the data type to use for the optimization (default: torch.double)
 - seed: the seed to use for the optimization (default: 0)
-- evol_state_maintainer: the evolution strategy to use (default: TurboState, i.e. the TR evolves similar to TuRBO)
+- evol_state_maintainer: the evolution strategy to use (default: DummyState, i.e. equivalent to vanilla BO)
 """
 class TrustRegionEvol:
     def __init__(self, model, model_params, acq_func, opt_kwargs, objective, bounds, num_init, num_bo, device, dtype=torch.double, seed=None, evol_state_maintainer=DummyState):
