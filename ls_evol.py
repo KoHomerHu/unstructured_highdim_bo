@@ -174,10 +174,10 @@ class TrustRegionEvol:
             self.results['Best Value'].append(self.y.max().cpu().item())
 
             ei_func = ExpectedImprovement(model, train_y.max())
-            ei = ei_func(next_X.unsqueeze(0)).cpu().item()
+            ei = ei_func(raw_next_X).cpu().item()
             self.results['EI'].append(ei)
             pi_func = ProbabilityOfImprovement(model, train_y.max())
-            pi = pi_func(next_X.unsqueeze(0)).cpu().item()
+            pi = pi_func(raw_next_X).cpu().item()
             self.results['PI'].append(pi)
 
             # Update state
