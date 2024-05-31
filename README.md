@@ -15,6 +15,7 @@
 - [x] Run experiments on ```levy4_25``` and compare different methods (e.g., vanilla BO, AR cooling, PI/EI threshold, success/failure counter) to evolve the lengthscale priors and trust region side lengths.
 - [ ] Design and implement methods that change TR side length based on the learned lengthscales (i.e. after MAP estimation), or directly scale the learned lengthscales instead of their prior.
 - [ ] Design and implement thresholding methods that have a way to schedule the thresholds (e.g. multiply by $0.1$ after the threshold is activated).
+- [ ] Design and implement a lengthscale scheduler.
 
 
 ## Timeline
