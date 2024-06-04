@@ -18,20 +18,23 @@ from benchmarking.gp_priors import (
 
 from state_evol import (
     DummyState, 
+    SchedulerState,
     TurboState, 
     AlphaRatioState,
+    AlphaRatioStateAlter,
     EIThresholdState,
     PIThresholdState
 )
-from turbo import VanillaTuRBO
-from ls_evol import TrustRegionEvol
+# from turbo import VanillaTuRBO
+from ls_evol import BaseLengthEvol
+from soft_winsorization import SigmoidBO
         
 
 @hydra.main(config_path='./configs', config_name='conf')
 def main(cfg: DictConfig) -> None:
     torch.manual_seed(int(cfg.seed))
     np.random.seed(int(cfg.seed))
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = 'cpu' # torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # Get the bounds of the input space
     bounds = torch.transpose(torch.Tensor(cfg.benchmark.bounds), 1, 0).to(device)
@@ -90,7 +93,22 @@ def main(cfg: DictConfig) -> None:
     #     seed=cfg.seed,
     #     gss=cfg.gss if hasattr(cfg, 'gss') else None
     # )
-    optimizer = TrustRegionEvol(
+    # Remark. If using AlphaRatioStateAlter, let device='cpu'.
+    # optimizer = BaseLengthEvol(
+    #     model=model,
+    #     model_params=covar_model_params,
+    #     acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
+    #     opt_kwargs=dict(cfg.acq_opt),
+    #     objective=test_function,
+    #     bounds=bounds,
+    #     num_init=num_init,
+    #     num_bo=num_bo,
+    #     device=device,
+    #     seed=cfg.seed,
+    #     evol_state_maintainer=AlphaRatioStateAlter,
+    # )
+    # Remark. If using SigmoidBO, let device='cpu'.
+    optimizer = SigmoidBO(
         model=model,
         model_params=covar_model_params,
         acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
@@ -101,7 +119,6 @@ def main(cfg: DictConfig) -> None:
         num_bo=num_bo,
         device=device,
         seed=cfg.seed,
-        evol_state_maintainer=DummyState
     )
 
     # run the optimization

@@ -17,37 +17,9 @@ from benchmarking.mappings import ACQUISITION_FUNCTIONS
 from benchmarking.gp_priors import get_covar_module
 from benchmarking.eval_utils import get_model_hyperparameters
 
-from state_evol import (
-    DummyState, 
-    TurboState,
-    AlphaRatioState,
-    AlphaRatioStateAlter,
-    EIThresholdState,
-    PIThresholdState,
-)
 
-"""
-High-dimenensional Bayesian Optimization that uses vanilla BO with evolving base length.
-1. Initialize the model with Sobol points.
-2. Perform vanilla BO.
-3. Multiply the lengthscale of the GP model by the base length
-
-Parameters:
-- model: the GP model to use during the vanilla BO stage
-- model_kwargs: keyword arguments for the GP model
-- acq_func: the acquisition function to use during the vanilla BO stage
-- opt_kwargs: keyword arguments for the optimize_acqf method
-- objective: the objective function to optimize
-- bounds: the bounds of the input space
-- num_init: the number of initial points to use for the Sobol initialization
-- num_bo: the number of BO iterations to perform after the Sobol initialization
-- device: the device to use for the optimization
-- dtype: the data type to use for the optimization (default: torch.double)
-- seed: the seed to use for the optimization (default: 0)
-- evol_state_maintainer: the evolution strategy to use (default: DummyState, i.e. equivalent to vanilla BO)
-"""
-class BaseLengthEvol:
-    def __init__(self, model, model_params, acq_func, opt_kwargs, objective, bounds, num_init, num_bo, device, dtype=torch.double, seed=None, evol_state_maintainer=DummyState):
+class SigmoidBO:
+    def __init__(self, model, model_params, acq_func, opt_kwargs, objective, bounds, num_init, num_bo, device, dtype=torch.double, seed=None):
         self.model = model
         self.model_params = model_params
         self.acq_func = acq_func
@@ -60,7 +32,6 @@ class BaseLengthEvol:
         self.device = device
         self.dtype  = dtype
         self.seed = seed
-        self.state = evol_state_maintainer(dim=len(bounds.T)) 
 
         self.X, self.y = None, None # unnormalized data points and evaluations
 
@@ -74,14 +45,13 @@ class BaseLengthEvol:
 
         self.hyperparameters = {}
 
-    """Unnormalize the input and then evaluate the objective function"""
     def eval_objective(self, x, seed=None):
         parameters = unnormalize(x, bounds=self.bounds)
         if seed is not None:
             return self.objective.evaluate_true(parameters, seed=seed)
         else:
             return self.objective(parameters)
-
+        
     def generate_next_point(self, model, X, bounds=None):
         # Optimize the acquisition function
         if self.acq_func == ACQUISITION_FUNCTIONS['qLogNEI']:
@@ -106,7 +76,6 @@ class BaseLengthEvol:
 
         return next_X
     
-    """Generate num_init of Sobol points."""
     def sobol_stage(self, save_file=None):
         sobol = SobolEngine(
             dimension=self.dim, 
@@ -134,32 +103,36 @@ class BaseLengthEvol:
 
         print(f"(1) Sobol Initialization Completed. {self.num_init} points generated. Best value: {self.y.max().item():.2f}")
 
-        self.state.best_value = self.y.max().cpu().item()
-
         self.save_results(save_file) # Save the results
 
-    def vanilla_bo_stage(self, save_file=None):
+    def vanilla_bo_stage(self, save_file=None, k=1, c=1.0):
         bo_iter = 0
+        def sigma_k(y):
+            if y >= 0: # only apply sigmoid to large values
+                return c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
+            else:
+                return y # c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
 
-        while not self.state.restart_triggered and bo_iter < self.num_bo:
-            # Normalize parameters and standariize evaluations
+        while bo_iter < self.num_bo:
+            # Normalize parameters and simplify evaluations
             train_X = normalize(self.X, bounds=self.bounds)
-            train_y = (self.y - self.y.mean()) / self.y.std()
+            train_y = (self.y - self.y.mean()) / self.y.std() # standardize
+            # print("Before: y_max = ", train_y.max().item())
+            original_y_max = train_y.max().item()
+            train_y = train_y.apply_(sigma_k) # simplification
+            train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
+            new_y_max = train_y.max().item()
+            # print("After: y_max = ", train_y.max().item())
 
             # Train the GP model globally to get the TR
-            model_kwargs = get_covar_module(**self.model_params, side_length=self.state.length) 
-            # model_kwargs = get_covar_module(**self.model_params) # Does not affect the prior
+            model_kwargs = get_covar_module(**self.model_params) 
             covar_module = model_kwargs['covar_module_class'](**model_kwargs['covar_module_options'])
             likelihood = model_kwargs['likelihood_class'](**model_kwargs['likelihood_options'])
             model = self.model(train_X, train_y, covar_module=covar_module, likelihood=likelihood).to(self.device)
             mll = ExactMarginalLogLikelihood(model.likelihood, model)
             fit_gpytorch_mll(mll)
-            # model.covar_module.lengthscale = model.covar_module.lengthscale * self.state.length # Multiply the lengthscale by the base length
-            # _, tr_lb, tr_ub = self.state.get_trust_region(model, train_X, train_y)
 
             # Generate the next point in the TR using EI
-            # tr_bounds = torch.stack([tr_lb, tr_ub]).to(self.device)
-            # raw_next_X = self.generate_next_point(model, train_X, bounds=tr_bounds) 
             raw_next_X = self.generate_next_point(model, train_X, bounds=None) # No trust region
             next_X = unnormalize(raw_next_X, bounds=self.bounds).squeeze(0)
             next_y = torch.tensor(
@@ -185,23 +158,7 @@ class BaseLengthEvol:
             pi = pi_func(raw_next_X).cpu().item()
             self.results['PI'].append(pi)
 
-            # Update state
-            if isinstance(self.state, EIThresholdState):
-                self.state.update_state(next_y, ei)
-            elif isinstance(self.state, PIThresholdState):
-                self.state.update_state(next_y, pi)
-            elif isinstance(self.state, AlphaRatioState):
-                if isinstance(self.state, AlphaRatioStateAlter):
-                    # print("Original Lengthscales: ", model.covar_module.lengthscale)
-                    model_kwargs_ast = get_covar_module(**self.model_params, side_length=self.state.length * 0.5)
-                    covar_module_ast = model_kwargs_ast['covar_module_class'](**model_kwargs_ast['covar_module_options'])
-                    self.state.update_state(next_y, model, train_X, train_y, self.opt_kwargs, covar_module_ast)
-                else:
-                    self.state.update_state(next_y, model, train_X, train_y, self.opt_kwargs)
-            else:
-                self.state.update_state(next_y)
-
-            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (L: {self.state.length:.2e}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
+            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old y_max: {original_y_max:.2f}, new y_max: {new_y_max:.2f}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
 
             self.save_results(save_file, model) # Save the results
 
@@ -228,3 +185,6 @@ class BaseLengthEvol:
                 self.hyperparameters[f'iter_{len(results_df)}'] = get_model_hyperparameters(model, self.y)
                 with open(f"{save_file[:-4]}_hps.json", "w") as f:
                     json.dump(self.hyperparameters, f, indent=2)
+    
+
+
