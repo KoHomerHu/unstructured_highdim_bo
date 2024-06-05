@@ -143,19 +143,19 @@ class BaseLengthEvol:
 
         # while not self.state.restart_triggered and bo_iter < self.num_bo:
         while bo_iter < self.num_bo:
-            # Normalize parameters and standardize evaluations
+            # Normalize parameters and standariize evaluations
             train_X = normalize(self.X, bounds=self.bounds)
             train_y = (self.y - self.y.mean()) / self.y.std()
 
             # Train the GP model globally to get the TR
-            # model_kwargs = get_covar_module(**self.model_params, side_length=self.state.length) 
-            model_kwargs = get_covar_module(**self.model_params) # Does not affect the prior
+            model_kwargs = get_covar_module(**self.model_params, side_length=self.state.length) 
+            # model_kwargs = get_covar_module(**self.model_params) # Does not affect the prior
             covar_module = model_kwargs['covar_module_class'](**model_kwargs['covar_module_options'])
             likelihood = model_kwargs['likelihood_class'](**model_kwargs['likelihood_options'])
             model = self.model(train_X, train_y, covar_module=covar_module, likelihood=likelihood).to(self.device)
             mll = ExactMarginalLogLikelihood(model.likelihood, model)
             fit_gpytorch_mll(mll)
-            model.covar_module.lengthscale = model.covar_module.lengthscale * self.state.length # Multiply the lengthscale by the base length
+            # model.covar_module.lengthscale = model.covar_module.lengthscale * self.state.length # Multiply the lengthscale by the base length
             # _, tr_lb, tr_ub = self.state.get_trust_region(model, train_X, train_y)
 
             # Generate the next point in the TR using EI
