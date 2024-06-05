@@ -1,6 +1,7 @@
 from botorch.test_functions import (
     Hartmann,
     Levy,
+    Ackley
 )
 from benchmarking.mujoco_task import MujocoFunction
 from ax.modelbridge.registry import Models
@@ -24,6 +25,9 @@ def get_test_function(name: str, noise_std: float, seed: int = 0,bounds=None):
         'hartmann6_100': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=100)),
         'hartmann6_300': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=300)),
         'hartmann6_1000': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=1000)),
+        'ackley4_25': (Embedded, dict(function=Ackley(dim=4), noise_std=noise_std, negate=True, dim=25)),
+        'ackley4_100': (Embedded, dict(function=Ackley(dim=4), noise_std=noise_std, negate=True, dim=100)),
+        'ackley4_1000': (Embedded, dict(function=Ackley(dim=4), noise_std=noise_std, negate=True, dim=1000)),
    }
 
     if name in TEST_FUNCTIONS.keys():
