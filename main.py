@@ -21,14 +21,21 @@ from state_evol import (
     SchedulerState,
     TurboState, 
     AlphaRatioState,
-    AlphaRatioStateAlter,
     EIThresholdState,
     PIThresholdState
 )
 # from turbo import VanillaTuRBO
 from ls_evol import BaseLengthEvol
 from soft_winsorization import SigmoidBO
-        
+
+get_evol_state_maintainer = {
+    'DummyState': DummyState,
+    'SchedulerState': SchedulerState,
+    'TurboState': TurboState,
+    'AlphaRatioState': AlphaRatioState,
+    'EIThresholdState': EIThresholdState,
+    'PIThresholdState': PIThresholdState
+}        
 
 @hydra.main(config_path='./configs', config_name='conf')
 def main(cfg: DictConfig) -> None:
@@ -105,7 +112,7 @@ def main(cfg: DictConfig) -> None:
         num_bo=num_bo,
         device=device,
         seed=cfg.seed,
-        evol_state_maintainer=AlphaRatioStateAlter,
+        evol_state_maintainer=get_evol_state_maintainer[cfg.evol_state_maintainer],
     )
     # Remark. If using SigmoidBO, let device='cpu'.
     # optimizer = SigmoidBO(
