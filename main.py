@@ -97,7 +97,7 @@ def main(cfg: DictConfig) -> None:
     #     gss=cfg.gss if hasattr(cfg, 'gss') else None
     # )
     # Remark. If using AlphaRatioStateAlter, let device='cpu'.
-    if cfg._evol_state_maintainer == 'sigmoid':
+    if cfg.evol_state_maintainer == 'sigmoid':
         # Remark. If using SigmoidBO, let device='cpu'.
         optimizer = SigmoidBO(
             model=model,
