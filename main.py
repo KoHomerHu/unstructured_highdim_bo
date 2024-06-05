@@ -21,20 +21,16 @@ from state_evol import (
     SchedulerState,
     TurboState, 
     AlphaRatioState,
-    EIThresholdState,
-    PIThresholdState
 )
 # from turbo import VanillaTuRBO
 from ls_evol import BaseLengthEvol
 from soft_winsorization import SigmoidBO
 
 get_evol_state_maintainer = {
-    'DummyState': DummyState,
-    'SchedulerState': SchedulerState,
-    'TurboState': TurboState,
-    'AlphaRatioState': AlphaRatioState,
-    'EIThresholdState': EIThresholdState,
-    'PIThresholdState': PIThresholdState
+    'dummy': DummyState,
+    'scheduler': SchedulerState,
+    'turbo': TurboState,
+    'AR': AlphaRatioState,
 }        
 
 @hydra.main(config_path='./configs', config_name='conf')
