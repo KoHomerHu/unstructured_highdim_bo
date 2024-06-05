@@ -154,7 +154,7 @@ class AlphaRatioState(DummyState):
         # Compute the ratio of EI
         ratio = math.exp(log_ei_ast - log_ei)
         if ratio > self.alpha:
-            self.length *= 0.5
+            self.length = max(self.length_min, self.length * 0.5)
         # elif ratio < self.alpha * 0.5:
         #     self.length = min(1.0, self.length * 2.0) # maximum length is 1.0
 
@@ -173,6 +173,7 @@ Has bug running with cuda, need to run with cpu for experiment.
 class AlphaRatioStateAlter(AlphaRatioState):
     def __init__(self, dim, alpha=1.0, acq_func=qLogNoisyExpectedImprovement):
         super().__init__(dim, alpha, acq_func)
+        self.length_min = 2 * 1e-4 / math.sqrt(dim) 
 
     def update_state(self, next_y, model, X, y, opt_kwargs, covar_module):
         self.best_value = max(self.best_value, max(next_y).item())

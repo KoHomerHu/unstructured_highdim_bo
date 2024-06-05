@@ -141,7 +141,8 @@ class BaseLengthEvol:
     def vanilla_bo_stage(self, save_file=None):
         bo_iter = 0
 
-        while not self.state.restart_triggered and bo_iter < self.num_bo:
+        # while not self.state.restart_triggered and bo_iter < self.num_bo:
+        while bo_iter < self.num_bo:
             # Normalize parameters and standariize evaluations
             train_X = normalize(self.X, bounds=self.bounds)
             train_y = (self.y - self.y.mean()) / self.y.std()

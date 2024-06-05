@@ -94,21 +94,7 @@ def main(cfg: DictConfig) -> None:
     #     gss=cfg.gss if hasattr(cfg, 'gss') else None
     # )
     # Remark. If using AlphaRatioStateAlter, let device='cpu'.
-    # optimizer = BaseLengthEvol(
-    #     model=model,
-    #     model_params=covar_model_params,
-    #     acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
-    #     opt_kwargs=dict(cfg.acq_opt),
-    #     objective=test_function,
-    #     bounds=bounds,
-    #     num_init=num_init,
-    #     num_bo=num_bo,
-    #     device=device,
-    #     seed=cfg.seed,
-    #     evol_state_maintainer=AlphaRatioStateAlter,
-    # )
-    # Remark. If using SigmoidBO, let device='cpu'.
-    optimizer = SigmoidBO(
+    optimizer = BaseLengthEvol(
         model=model,
         model_params=covar_model_params,
         acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
@@ -119,7 +105,21 @@ def main(cfg: DictConfig) -> None:
         num_bo=num_bo,
         device=device,
         seed=cfg.seed,
+        evol_state_maintainer=AlphaRatioStateAlter,
     )
+    # Remark. If using SigmoidBO, let device='cpu'.
+    # optimizer = SigmoidBO(
+    #     model=model,
+    #     model_params=covar_model_params,
+    #     acq_func=ACQUISITION_FUNCTIONS[cfg.acq.acq_func],
+    #     opt_kwargs=dict(cfg.acq_opt),
+    #     objective=test_function,
+    #     bounds=bounds,
+    #     num_init=num_init,
+    #     num_bo=num_bo,
+    #     device=device,
+    #     seed=cfg.seed,
+    # )
 
     # run the optimization
     optimizer.run(
