@@ -31,7 +31,7 @@ def get_test_function(name: str, noise_std: float, seed: int = 0,bounds=None):
         'ackley4_100': (Embedded, dict(function=Ackley(dim=4), noise_std=noise_std, negate=True, dim=100)),
         'michalewicz10_25': (Embedded, dict(function=Michalewicz(dim=10), noise_std=noise_std, negate=True, dim=25)),
         'michalewicz10_100': (Embedded, dict(function=Michalewicz(dim=10), noise_std=noise_std, negate=True, dim=100)),
-        'eggholder2_25': (Embedded, dict(function=EggHolder(dim=2), noise_std=noise_std, negate=True, dim=25)),
+        'eggholder2_25': (Embedded, dict(function=EggHolder(), noise_std=noise_std, negate=True, dim=25)),
    }
 
     if name in TEST_FUNCTIONS.keys():
