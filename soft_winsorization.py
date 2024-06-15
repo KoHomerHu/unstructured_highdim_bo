@@ -105,23 +105,50 @@ class SigmoidBO:
 
         self.save_results(save_file) # Save the results
 
-    def vanilla_bo_stage(self, save_file=None, k=1, c=1.0):
-        bo_iter = 0
+    def vanilla_bo_stage(self, save_file=None, k=1, c=1.5):
         def sigma_k(y):
-            if y >= 0: # only apply sigmoid to large values
-                return c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
-            else:
-                return y # c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
+            return c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
+        
+        """
+        Use bootstrapping to estimate more robust mean and standard deviation that is insensitive to concentration of inputs.
+        """
+        def estimate_mean_std(X, y):
+            # Fit another surrogate model
+            model_kwargs = get_covar_module(**self.model_params)
+            covar_module = model_kwargs['covar_module_class'](**model_kwargs['covar_module_options'])
+            likelihood = model_kwargs['likelihood_class'](**model_kwargs['likelihood_options'])
+            model = self.model(X, y, covar_module=covar_module, likelihood=likelihood).to(self.device)
+            mll = ExactMarginalLogLikelihood(model.likelihood, model)
+            fit_gpytorch_mll(mll)
 
+            # Generate N = 1024 sobol points to sample from the posterior
+            with torch.no_grad(): # We don't need gradients for sampling
+                N = 1024
+                sobol = SobolEngine(
+                    dimension=self.dim, 
+                    scramble=True, 
+                    seed=self.seed
+                )
+                sample_inputs = sobol.draw(n=N).to(dtype=self.dtype, device=self.device)
+                posterior = model.posterior(sample_inputs)
+                samples = posterior.rsample(sample_shape=torch.Size([N]))
+                mean = samples.mean()
+                std = samples.std() * (N / (N - 1)) ** 0.5 # Correct the std for sampling error
+            return mean, std
+
+        bo_iter = 0
         while bo_iter < self.num_bo:
             # Normalize parameters and simplify evaluations
             train_X = normalize(self.X, bounds=self.bounds)
             train_y = (self.y - self.y.mean()) / self.y.std() # standardize
-            # print("Before: y_max = ", train_y.max().item())
             original_y_max = train_y.max().item()
+            original_y_mean = train_y.mean().item()
+            est_mean, est_std = estimate_mean_std(train_X, train_y)
+            train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
             train_y = train_y.apply_(sigma_k) # simplification
             train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
             new_y_max = train_y.max().item()
+            new_y_mean = train_y.mean().item()
             # print("After: y_max = ", train_y.max().item())
 
             # Train the GP model globally to get the TR
@@ -158,7 +185,7 @@ class SigmoidBO:
             pi = pi_func(raw_next_X).cpu().item()
             self.results['PI'].append(pi)
 
-            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old y_max: {original_y_max:.2f}, new y_max: {new_y_max:.2f}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
+            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old y_max: {original_y_max:.2f}, new y_max: {new_y_max:.2f}, old y_mean: {original_y_mean:.2f}, new_y_mean: {new_y_mean:.2f}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
 
             self.save_results(save_file, model) # Save the results
 
