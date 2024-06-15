@@ -105,7 +105,7 @@ class SigmoidBO:
 
         self.save_results(save_file) # Save the results
 
-    def vanilla_bo_stage(self, save_file=None, k=1, c=1.5):
+    def vanilla_bo_stage(self, save_file=None, k=1, c=2.0, p=0.7):
         def sigma_k(y):
             return c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
         
@@ -142,14 +142,17 @@ class SigmoidBO:
             train_X = normalize(self.X, bounds=self.bounds)
             train_y = (self.y - self.y.mean()) / self.y.std() # standardize
             original_y_max = train_y.max().item()
-            original_y_mean = train_y.mean().item()
-            est_mean, est_std = estimate_mean_std(train_X, train_y)
-            train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
-            train_y = train_y.apply_(sigma_k) # simplification
-            train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
+            original_y_min = train_y.min().item()
+            # Apply soft winsorization with probability p
+            if torch.rand(1) < p:
+                print(f"Applying soft winsorization to the data points.")
+                train_y = train_y.apply_(sigma_k)
+                est_mean, est_std = estimate_mean_std(train_X, train_y)
+                train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
+                train_y = train_y.apply_(sigma_k) # simplification
+                train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
             new_y_max = train_y.max().item()
-            new_y_mean = train_y.mean().item()
-            # print("After: y_max = ", train_y.max().item())
+            new_y_min = train_y.min().item()
 
             # Train the GP model globally to get the TR
             model_kwargs = get_covar_module(**self.model_params) 
@@ -185,7 +188,7 @@ class SigmoidBO:
             pi = pi_func(raw_next_X).cpu().item()
             self.results['PI'].append(pi)
 
-            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old y_max: {original_y_max:.2f}, new y_max: {new_y_max:.2f}, old y_mean: {original_y_mean:.2f}, new_y_mean: {new_y_mean:.2f}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
+            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old_y_range: ({original_y_min:.2f}, {original_y_max}), new_y_range: ({new_y_min:.2f}, {new_y_max}), EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
 
             self.save_results(save_file, model) # Save the results
 
