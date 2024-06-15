@@ -146,10 +146,9 @@ class SigmoidBO:
             # Apply soft winsorization with probability p
             if torch.rand(1) < p:
                 print(f"Applying soft winsorization to the data points.")
-                train_y = train_y.apply_(sigma_k)
                 est_mean, est_std = estimate_mean_std(train_X, train_y)
-                train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
                 train_y = train_y.apply_(sigma_k) # simplification
+                train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
                 train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
             new_y_max = train_y.max().item()
             new_y_min = train_y.min().item()
@@ -188,7 +187,7 @@ class SigmoidBO:
             pi = pi_func(raw_next_X).cpu().item()
             self.results['PI'].append(pi)
 
-            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old_y_range: ({original_y_min:.2f}, {original_y_max}), new_y_range: ({new_y_min:.2f}, {new_y_max}), EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
+            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old_y_range: ({original_y_min:.2f}, {original_y_max:.2f}), new_y_range: ({new_y_min:.2f}, {new_y_max:.2f}), EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
 
             self.save_results(save_file, model) # Save the results
 
