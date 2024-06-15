@@ -147,8 +147,8 @@ class SigmoidBO:
             if torch.rand(1) < p:
                 print(f"Applying soft winsorization to the data points.")
                 est_mean, est_std = estimate_mean_std(train_X, train_y)
-                train_y = train_y.apply_(sigma_k) # simplification
                 train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
+                train_y = train_y.apply_(sigma_k) # simplification
                 train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
             new_y_max = train_y.max().item()
             new_y_min = train_y.min().item()
