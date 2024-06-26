@@ -139,7 +139,7 @@ class AlphaRatioState(DummyState):
 
         # Compute the EI at incumbent after shinking the lengthscales
         model_ast = copy.deepcopy(model)
-        model_ast.covar_module.lengthscale = model_ast.covar_module.lengthscale * 0.5 # shrink the lengthscales
+        model_ast.covar_module.lengthscale = torch.max(model_ast.covar_module.lengthscale * 0.5, torch.tensor([1e-4+1e-7])) # shrink the lengthscales
         acf_ast = self.acq_func(model_ast, X, prune_baseline=True)
         _, lb_ast, ub_ast = self.get_trust_region(model_ast, X, y)
         bounds_ast = torch.stack([lb_ast, ub_ast]).to(X.device)
