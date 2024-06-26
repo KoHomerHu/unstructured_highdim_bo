@@ -105,7 +105,7 @@ class SigmoidBO:
 
         self.save_results(save_file) # Save the results
 
-    def vanilla_bo_stage(self, save_file=None, k=1, c=2.0, p=0.7):
+    def vanilla_bo_stage(self, save_file=None, k=1, c=1.5, p=0.7, bootstrapping=False):
         def sigma_k(y):
             return c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
         
@@ -143,13 +143,13 @@ class SigmoidBO:
             train_y = (self.y - self.y.mean()) / self.y.std() # standardize
             original_y_max = train_y.max().item()
             original_y_min = train_y.min().item()
-            # Apply soft winsorization with probability p
-            if torch.rand(1) < p:
-                print(f"Applying soft winsorization to the data points.")
-                est_mean, est_std = estimate_mean_std(train_X, train_y)
-                train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
-                train_y = train_y.apply_(sigma_k) # simplification
-                train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
+            if bootstrapping:
+                if torch.rand(1) < p: # Apply soft winsorization with probability p
+                    print(f"Applying soft winsorization to the data points.")
+                    est_mean, est_std = estimate_mean_std(train_X, train_y)
+                    train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
+            train_y = train_y.apply_(sigma_k) # simplification via soft winsorization
+            train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
             new_y_max = train_y.max().item()
             new_y_min = train_y.min().item()
 
