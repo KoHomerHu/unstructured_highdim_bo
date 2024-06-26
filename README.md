@@ -1,3 +1,5 @@
+This is the ```README.md``` file of the [original repository](https://github.com/hvarfner/vanilla_bo_in_highdim) of the paper ["Vanilla Bayesian Optimization Performs Great in High Dimensions"](https://arxiv.org/abs/2402.02229).
+
 # Official repository for "Vanilla Bayesian Optimization Performs Great in High Dimensions"
 
 To run any experiment in the paper:
