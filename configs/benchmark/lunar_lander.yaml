@@ -1,0 +1,7 @@
+name: lunar_lander
+benchmark: lunar_lander
+num_iters: 200
+num_init: 50
+parameters: null
+bounds: [[0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2], [0, 2]]
+noise_std: 0.01
