@@ -20,10 +20,12 @@ from botorch.acquisition.logei import qLogNoisyExpectedImprovement
 def get_test_function(name: str, noise_std: float, seed: int = 0,bounds=None):
     
     TEST_FUNCTIONS = {
+        'levy4_4': (Embedded, dict(function=Levy(dim=4), noise_std=noise_std, negate=True, dim=4)),
         'levy4_25': (Embedded, dict(function=Levy(dim=4), noise_std=noise_std, negate=True, dim=25)),
         'levy4_100': (Embedded, dict(function=Levy(dim=4), noise_std=noise_std, negate=True, dim=100)),
         'levy4_300': (Embedded, dict(function=Levy(dim=4), noise_std=noise_std, negate=True, dim=300)),
         'levy4_1000': (Embedded, dict(function=Levy(dim=4), noise_std=noise_std, negate=True, dim=1000)),
+        'hartmann6_6': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=6)),
         'hartmann6_25': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=25)),
         'hartmann6_100': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=100)),
         'hartmann6_300': (Embedded, dict(function=Hartmann(dim=6), noise_std=noise_std, negate=True, dim=300)),
@@ -57,6 +59,9 @@ def get_test_function(name: str, noise_std: float, seed: int = 0,bounds=None):
     elif name == 'humanoid':
         from benchmarking.mujoco_task import MujocoFunction
         function = (MujocoFunction, dict(negate=True, bounds=bounds, container='mujoco', task_id='humanoid'))
+    elif name == 'lunar_lander':
+        from benchmarking.lunar_lander_task import LunarLanderFunction
+        function = (LunarLanderFunction, dict(negate=True))
     else:
         raise ValueError(f"Function {name} is not available - feel free to add it!")    
     
