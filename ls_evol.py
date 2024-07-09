@@ -118,7 +118,7 @@ class BaseLengthEvol:
         raw_X = sobol.draw(n=self.num_init).to(dtype=self.dtype, device=self.device)
         self.X = unnormalize(raw_X, bounds=self.bounds)
         self.y = torch.tensor(
-            [self.eval_objective(x) for x in raw_X], 
+            [self.eval_objective(x, seed=self.seed) for x in raw_X], 
             dtype=self.dtype, 
             device=self.device
         ).unsqueeze(-1)
@@ -132,7 +132,7 @@ class BaseLengthEvol:
             self.results['EI'].append(float('nan'))
             self.results['PI'].append(float('nan'))
 
-        print(f"(1) Sobol Initialization Completed. {self.num_init} points generated. Best value: {self.y.max().item():.2f}")
+        print(f"(1) Sobol Initialization Completed. {self.num_init} points generated. Best value: {self.results['Best Value'][-1]:.2f}")
 
         self.state.best_value = self.y.max().cpu().item()
 
@@ -145,17 +145,17 @@ class BaseLengthEvol:
         while bo_iter < self.num_bo:
             # Normalize parameters and standariize evaluations
             train_X = normalize(self.X, bounds=self.bounds)
-            train_y = (self.y - self.y.mean()) / self.y.std()
+            train_y = (self.y - self.y.mean()) / self.y.std() if self.y.std() > 0 else (self.y - self.y.mean())
 
             # Train the GP model globally to get the TR
-            model_kwargs = get_covar_module(**self.model_params, side_length=self.state.length) 
-            # model_kwargs = get_covar_module(**self.model_params) # Does not affect the prior
+            # model_kwargs = get_covar_module(**self.model_params, side_length=self.state.length) 
+            model_kwargs = get_covar_module(**self.model_params) # Does not affect the prior
             covar_module = model_kwargs['covar_module_class'](**model_kwargs['covar_module_options'])
             likelihood = model_kwargs['likelihood_class'](**model_kwargs['likelihood_options'])
             model = self.model(train_X, train_y, covar_module=covar_module, likelihood=likelihood).to(self.device)
             mll = ExactMarginalLogLikelihood(model.likelihood, model)
             fit_gpytorch_mll(mll)
-            # model.covar_module.lengthscale = model.covar_module.lengthscale * self.state.length # Multiply the lengthscale by the base length
+            model.covar_module.lengthscale = torch.max(torch.tensor([1e-4+1e-7]), model.covar_module.lengthscale * self.state.length) # Multiply the lengthscale by the base length
             # _, tr_lb, tr_ub = self.state.get_trust_region(model, train_X, train_y)
 
             # Generate the next point in the TR using EI
@@ -164,7 +164,7 @@ class BaseLengthEvol:
             raw_next_X = self.generate_next_point(model, train_X, bounds=None) # No trust region
             next_X = unnormalize(raw_next_X, bounds=self.bounds).squeeze(0)
             next_y = torch.tensor(
-                [self.eval_objective(raw_next_X)],
+                [self.eval_objective(raw_next_X, seed=self.seed+self.num_init+bo_iter)],
                 dtype=self.dtype,
                 device=self.device
             ).unsqueeze(-1)
@@ -202,7 +202,7 @@ class BaseLengthEvol:
             else:
                 self.state.update_state(next_y)
 
-            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (L: {self.state.length:.2e}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
+            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (L: {self.state.length:.2e}, EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.results['Best Value'][-1]:.2f})")
 
             self.save_results(save_file, model) # Save the results
 

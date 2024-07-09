@@ -1,5 +1,6 @@
 import torch
 from torch.quasirandom import SobolEngine
+from scipy.stats import expectile
 
 import json
 import os
@@ -87,7 +88,7 @@ class SigmoidBO:
         raw_X = sobol.draw(n=self.num_init).to(dtype=self.dtype, device=self.device)
         self.X = unnormalize(raw_X, bounds=self.bounds)
         self.y = torch.tensor(
-            [self.eval_objective(x) for x in raw_X], 
+            [self.eval_objective(x, seed=self.seed) for x in raw_X], 
             dtype=self.dtype, 
             device=self.device
         ).unsqueeze(-1)
@@ -101,11 +102,11 @@ class SigmoidBO:
             self.results['EI'].append(float('nan'))
             self.results['PI'].append(float('nan'))
 
-        print(f"(1) Sobol Initialization Completed. {self.num_init} points generated. Best value: {self.y.max().item():.2f}")
+        print(f"(1) Sobol Initialization Completed. {self.num_init} points generated. Best value: {self.results['Best Value'][-1]:.2f}")
 
         self.save_results(save_file) # Save the results
 
-    def vanilla_bo_stage(self, save_file=None, k=1, c=1.5, p=0.7, bootstrapping=False):
+    def vanilla_bo_stage(self, save_file=None, k=1, c=1.5, bootstrapping=False):
         def sigma_k(y):
             return c * (y/c) / (1 + abs((y/c))**k) ** (1/k) 
         
@@ -140,16 +141,17 @@ class SigmoidBO:
         while bo_iter < self.num_bo:
             # Normalize parameters and simplify evaluations
             train_X = normalize(self.X, bounds=self.bounds)
-            train_y = (self.y - self.y.mean()) / self.y.std() # standardize
+            train_y = (self.y - self.y.mean()) / self.y.std() if self.y.std() > 0  else (self.y - self.y.mean()) # standardize
             original_y_max = train_y.max().item()
             original_y_min = train_y.min().item()
             if bootstrapping:
-                if torch.rand(1) < p: # Apply soft winsorization with probability p
-                    print(f"Applying soft winsorization to the data points.")
-                    est_mean, est_std = estimate_mean_std(train_X, train_y)
-                    train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
+                est_mean, est_std = estimate_mean_std(train_X, train_y)
+                train_y = (train_y - est_mean) / est_std # re-standardize based on bootstrapping
             train_y = train_y.apply_(sigma_k) # simplification via soft winsorization
-            train_y = (train_y - train_y.mean()) / train_y.std() # re-standardize
+            # if bootstrapping:
+            #     train_y = (train_y - expectile(train_y, alpha=0.95)) / train_y.std() # re-standardize asymmetrically
+            # else:
+            train_y = (train_y - train_y.mean()) / train_y.std() if train_y.std() > 0  else (train_y - train_y.mean())
             new_y_max = train_y.max().item()
             new_y_min = train_y.min().item()
 
@@ -165,7 +167,7 @@ class SigmoidBO:
             raw_next_X = self.generate_next_point(model, train_X, bounds=None) # No trust region
             next_X = unnormalize(raw_next_X, bounds=self.bounds).squeeze(0)
             next_y = torch.tensor(
-                [self.eval_objective(raw_next_X)],
+                [self.eval_objective(raw_next_X, seed=self.seed+self.num_init+bo_iter)],
                 dtype=self.dtype,
                 device=self.device
             ).unsqueeze(-1)
@@ -187,7 +189,7 @@ class SigmoidBO:
             pi = pi_func(raw_next_X).cpu().item()
             self.results['PI'].append(pi)
 
-            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old_y_range: ({original_y_min:.2f}, {original_y_max:.2f}), new_y_range: ({new_y_min:.2f}, {new_y_max:.2f}), EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.y.max().item():.2f})")
+            print(f"(2) Iteration {self.num_init+bo_iter+1}/{self.num_init+self.num_bo}: ({', '.join([f'{x:.2f}' for x in next_X.tolist()])}) -> {next_y.cpu().item():.2f} with (old_y_range: ({original_y_min:.2f}, {original_y_max:.2f}), new_y_range: ({new_y_min:.2f}, {new_y_max:.2f}), EI: {ei:.2f}, PI: {pi:.2f}, Best Value: {self.results['Best Value'][-1]:.2f})")
 
             self.save_results(save_file, model) # Save the results
 
