@@ -61,7 +61,19 @@ def get_test_function(name: str, noise_std: float, seed: int = 0,bounds=None):
         function = (MujocoFunction, dict(negate=True, bounds=bounds, container='mujoco', task_id='humanoid'))
     elif name == 'lunar_lander':
         from benchmarking.lunar_lander_task import LunarLanderFunction
-        function = (LunarLanderFunction, dict(negate=True))
+        function = (LunarLanderFunction, dict(negate=False))
+    elif name == 'lunar_lander_continuous':
+        from benchmarking.lunar_lander_continuous_task import LunarLanderContinuousFunction
+        function = (LunarLanderContinuousFunction, dict(negate=False))
+    elif name == 'cartpole':
+        from benchmarking.cartpole_task import CartPoleFunction
+        function = (CartPoleFunction, dict(negate=False))
+    elif name == 'bipedal_walker':
+        from benchmarking.bipedal_walker_task import BipedalWalkerFunction
+        function = (BipedalWalkerFunction, dict(negate=False))
+    elif name == 'walker2d':
+        from benchmarking.walker2d_task import Walker2DFunction
+        function = (Walker2DFunction, dict(negate=False))
     else:
         raise ValueError(f"Function {name} is not available - feel free to add it!")    
     
