@@ -1,0 +1,7 @@
+name: cartpole
+benchmark: cartpole
+num_iters: 300
+num_init: 6
+parameters: null
+bounds: [[0, 100], [0, 100], [0, 100], [0, 100]]
+noise_std: 0.01
