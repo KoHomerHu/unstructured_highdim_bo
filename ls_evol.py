@@ -118,7 +118,7 @@ class BaseLengthEvol:
         raw_X = sobol.draw(n=self.num_init).to(dtype=self.dtype, device=self.device)
         self.X = unnormalize(raw_X, bounds=self.bounds)
         self.y = torch.tensor(
-            [self.eval_objective(x, seed=self.seed) for x in raw_X], 
+            [self.eval_objective(x) for x in raw_X], 
             dtype=self.dtype, 
             device=self.device
         ).unsqueeze(-1)
@@ -164,7 +164,7 @@ class BaseLengthEvol:
             raw_next_X = self.generate_next_point(model, train_X, bounds=None) # No trust region
             next_X = unnormalize(raw_next_X, bounds=self.bounds).squeeze(0)
             next_y = torch.tensor(
-                [self.eval_objective(raw_next_X, seed=self.seed+self.num_init+bo_iter)],
+                [self.eval_objective(raw_next_X)],
                 dtype=self.dtype,
                 device=self.device
             ).unsqueeze(-1)
