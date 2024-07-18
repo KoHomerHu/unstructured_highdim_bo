@@ -226,7 +226,7 @@ In order to control the evolution of the TR length.
 Modified from the BoTorch tutorial (https://botorch.org/tutorials/turbo_1).
 """
 class TurboState(DummyState):
-    def __init__(self, dim, success_tolerance=10, min_failure_tolerance=4.0):
+    def __init__(self, dim, success_tolerance=3, min_failure_tolerance=4.0):
         super().__init__(dim)
         self.length = 1.0
         self.length_min = 0.5**7
